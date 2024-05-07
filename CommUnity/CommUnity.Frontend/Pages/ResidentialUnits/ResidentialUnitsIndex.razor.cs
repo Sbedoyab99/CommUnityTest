@@ -2,6 +2,7 @@ using CommUnity.FrontEnd.Repositories;
 using CommUnity.Shared.Entities;
 using CurrieTechnologies.Razor.SweetAlert2;
 using Microsoft.AspNetCore.Components;
+using MudBlazor;
 using System.Net;
 using System.Threading.Tasks;
 
@@ -9,62 +10,72 @@ namespace CommUnity.FrontEnd.Pages.ResidentialUnits
 {
     public partial class ResidentialUnitsIndex
     {
-        private int currentPage = 1;
-        private int totalPages;
-        private string currentRecordsNumber = "10";
+        public List<ResidentialUnit>? ResidentialUnits { get; set; }
+
+        private readonly int[] pageSizeOptions = { 10, 25, 50, int.MaxValue };
+        private MudTable<ResidentialUnit> table = new();
+        private int currentRecordsNumber = 10;
+        private int totalRecords = 0;
 
         [Inject] private IRepository Repository { get; set; } = null!;
         [Inject] private SweetAlertService SweetAlertService { get; set; } = null!;
         [Inject] private NavigationManager NavigationManager { get; set; } = null!;
 
-        [Parameter, SupplyParameterFromQuery] public string Page { get; set; } = string.Empty;
         [Parameter, SupplyParameterFromQuery] public string Filter { get; set; } = string.Empty;
-        [Parameter, SupplyParameterFromQuery] public string RecordsNumber { get; set; } = string.Empty;
-
-        public List<ResidentialUnit>? ResidentialUnits { get; set; }
 
         protected override async Task OnInitializedAsync()
         {
             await LoadAsync();
         }
 
-        private async Task SelectedPageAsync(int page)
+        private async Task LoadAsync()
         {
-            currentPage = page;
-            await LoadAsync(page);
-        }
-
-        private async Task LoadAsync(int page = 1)
-        {
-            if (!string.IsNullOrWhiteSpace(Page))
-            {
-                page = Convert.ToInt32(Page);
-            }
-            var ok = await LoadListAsync(page);
+            var ok = await LoadTotalRecords();
             if (ok)
             {
-                if (RecordsNumber != "todos")
-                {
-                    await LoadPagesAsync();
-                }
+                var state = new TableState { Page = 0, PageSize = currentRecordsNumber };
+                await LoadListAsync(state);
             }
         }
 
-        private async Task<bool> LoadListAsync(int page)
+        private async Task<bool> LoadTotalRecords()
         {
             string baseUrl = "api/residentialUnit";
             string url;
-            if (currentRecordsNumber == "todos")
+
+            url = $"{baseUrl}?page=1&recordsnumber={int.MaxValue}";
+            if (!string.IsNullOrWhiteSpace(Filter))
             {
-                url = $"{baseUrl}/full";
+                url += $"&filter={Filter}";
             }
-            else
+            var responseHttp = await Repository.GetAsync<List<ResidentialUnit>>(url);
+            if (responseHttp.Error)
             {
-                url = $"{baseUrl}?page={page}&recordsnumber={currentRecordsNumber}";
-                if (!string.IsNullOrWhiteSpace(Filter))
+                var message = await responseHttp.GetErrorMessageAsync();
+                await SweetAlertService.FireAsync(new SweetAlertOptions
                 {
-                    url += $"&filter={Filter}";
-                }
+                    Title = "Error",
+                    Text = message,
+                    Icon = SweetAlertIcon.Error
+                });
+                return false;
+            }
+            totalRecords = responseHttp.Response!.Count;
+            return true;
+        }
+
+        private async Task<TableData<ResidentialUnit>> LoadListAsync(TableState state)
+        {
+            int page = state.Page + 1;
+            int pageSize = state.PageSize;
+
+            string baseUrl = "api/residentialUnit";
+            string url;
+
+            url = $"{baseUrl}?page={page}&recordsnumber={pageSize}";
+            if (!string.IsNullOrWhiteSpace(Filter))
+            {
+                url += $"&filter={Filter}";
             }
 
             var responseHttp = await Repository.GetAsync<List<ResidentialUnit>>(url);
@@ -77,62 +88,25 @@ namespace CommUnity.FrontEnd.Pages.ResidentialUnits
                     Text = message,
                     Icon = SweetAlertIcon.Error
                 });
-            }
-            
-            ResidentialUnits = responseHttp.Response;
-            return true;
-        }
-
-        private async Task LoadPagesAsync()
-        {
-            string baseUrl = "api/residentialUnit";
-            string url;
-            if (currentRecordsNumber == "todos")
-            {
-                return;
-            }
-            else
-            {
-                url = $"{baseUrl}/totalpages?recordsnumber={currentRecordsNumber}";
-                if (!string.IsNullOrWhiteSpace(Filter))
-                {
-                    url += $"&filter={Filter}";
-                }
+                return new TableData<ResidentialUnit> { Items = new List<ResidentialUnit>(), TotalItems = 0 };
             }
 
-            var responseHttp = await Repository.GetAsync<int>(url);
-            if (responseHttp.Error)
+            if(responseHttp.Response == null)
             {
-                var message = await responseHttp.GetErrorMessageAsync();
-                await SweetAlertService.FireAsync(new SweetAlertOptions
-                {
-                    Title = "Error",
-                    Text = message,
-                    Icon = SweetAlertIcon.Error
-                });
+                return new TableData<ResidentialUnit> { Items = new List<ResidentialUnit>(), TotalItems = 0 };
             }
-            totalPages = responseHttp.Response;
-        }
-
-        private async Task ApplyFilterAsync()
-        {
-            int page = 1;
-            await LoadAsync(page);
-            await SelectedPageAsync(page);
+            return new TableData<ResidentialUnit>
+            {
+                Items = responseHttp.Response,
+                TotalItems = totalRecords 
+            };
         }
 
         private async Task SetFilterValue(string value)
         {
             Filter = value;
-            await ApplyFilterAsync();
-        }
-
-        private async Task SetRecordsNumber(string value)
-        {
-            int page = 1;
-            RecordsNumber = value;
-            currentRecordsNumber = value;
-            await LoadAsync(page);
+            await LoadAsync();
+            await table.ReloadServerData();
         }
 
         private async Task DeleteAsync(ResidentialUnit residentialUnit)
@@ -170,6 +144,7 @@ namespace CommUnity.FrontEnd.Pages.ResidentialUnits
                 return;
             }
             await LoadAsync();
+            await table.ReloadServerData();
             var toast = SweetAlertService.Mixin(new SweetAlertOptions
             {
                 Toast = true,
