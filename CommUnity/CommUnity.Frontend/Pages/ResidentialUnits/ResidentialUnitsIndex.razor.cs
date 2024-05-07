@@ -16,6 +16,7 @@ namespace CommUnity.FrontEnd.Pages.ResidentialUnits
         private MudTable<ResidentialUnit> table = new();
         private int currentRecordsNumber = 10;
         private int totalRecords = 0;
+        private bool loading;
 
         [Inject] private IRepository Repository { get; set; } = null!;
         [Inject] private SweetAlertService SweetAlertService { get; set; } = null!;
@@ -30,25 +31,21 @@ namespace CommUnity.FrontEnd.Pages.ResidentialUnits
 
         private async Task LoadAsync()
         {
-            var ok = await LoadTotalRecords();
-            if (ok)
-            {
-                var state = new TableState { Page = 0, PageSize = currentRecordsNumber };
-                await LoadListAsync(state);
-            }
+            await LoadTotalRecords();
         }
 
         private async Task<bool> LoadTotalRecords()
         {
+            loading = true; 
             string baseUrl = "api/residentialUnit";
             string url;
 
-            url = $"{baseUrl}?page=1&recordsnumber={int.MaxValue}";
+            url = $"{baseUrl}/recordsnumber?page=1&recordsnumber={int.MaxValue}";
             if (!string.IsNullOrWhiteSpace(Filter))
             {
                 url += $"&filter={Filter}";
             }
-            var responseHttp = await Repository.GetAsync<List<ResidentialUnit>>(url);
+            var responseHttp = await Repository.GetAsync<int>(url);
             if (responseHttp.Error)
             {
                 var message = await responseHttp.GetErrorMessageAsync();
@@ -60,9 +57,10 @@ namespace CommUnity.FrontEnd.Pages.ResidentialUnits
                 });
                 return false;
             }
-            totalRecords = responseHttp.Response!.Count;
+            totalRecords = responseHttp.Response;
+            loading = false;
             return true;
-        }
+        } 
 
         private async Task<TableData<ResidentialUnit>> LoadListAsync(TableState state)
         {

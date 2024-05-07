@@ -1,6 +1,6 @@
 ﻿@page "/residentialUnits"
 
-@if (totalRecords == 0)
+@if (loading)
 {
     <Loading/>
 }
@@ -51,7 +51,7 @@ else
             </MudTd>
             <MudTd DataLabel="Noticias">
                 <a href="/news/@context.Id">
-                    <MudButton Variant="Variant.Filled" EndIcon="@Icons.Material.Filled.Newspaper" Color="Color.Primary">
+                    <MudButton Variant="Variant.Filled" EndIcon="@Icons.Material.Filled.Newspaper" Color="Color.Tertiary">
                         @context.NewsNumber
                     </MudButton>
                 </a>
@@ -61,6 +61,9 @@ else
                 <MudButton Variant="Variant.Filled" EndIcon="@Icons.Material.Filled.Delete" Color="Color.Error" @onclick=@(() => DeleteAsync(@context))>Eliminar</MudButton>
             </MudTd>
         </RowTemplate>
+        <NoRecordsContent>
+            <MudText>No se encontraron registros.</MudText>
+        </NoRecordsContent>
         <PagerContent>
             <MudTablePager RowsPerPageString="Numero de Registros:"
                            PageSizeOptions="pageSizeOptions"

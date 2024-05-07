@@ -5,6 +5,7 @@ using CommUnity.Shared.DTOs;
 using CommUnity.Shared.Entities;
 using CommUnity.Shared.Responses;
 using Microsoft.EntityFrameworkCore;
+using System.Linq;
 
 namespace CommUnity.BackEnd.Repositories.Implementations
 {
@@ -56,10 +57,6 @@ namespace CommUnity.BackEnd.Repositories.Implementations
 
         public override async Task<ActionResponse<IEnumerable<ResidentialUnit>>> GetAsync(PaginationDTO pagination)
         {
-            //var queryable = _context.ResidentialUnits
-            //    .Where(x => x.City!.Id == pagination.Id)
-            //    .AsQueryable();
-
             var queryable = _context.ResidentialUnits.Include(x => x.City!).Include(x => x.Apartments!).Include(x => x.CommonZones!).Include(x => x.News!).AsQueryable();
 
             if (pagination.Id != 0)
@@ -96,12 +93,30 @@ namespace CommUnity.BackEnd.Repositories.Implementations
             };
         }
 
+        public async Task<ActionResponse<int>> GetRecordsNumber(PaginationDTO pagination)
+        {
+            var queryable = _context.ResidentialUnits.AsQueryable();
+            if (pagination.Id != 0)
+            {
+                queryable = queryable.Where(x => x.City!.Id == pagination.Id);
+            }
+
+            if (!string.IsNullOrWhiteSpace(pagination.Filter))
+            {
+                queryable = queryable.Where(x => x.Name.ToLower().Contains(pagination.Filter.ToLower()));
+            }
+
+            int recordsNumber = await queryable.CountAsync();
+
+            return new ActionResponse<int>
+            {
+                WasSuccess = true,
+                Result = recordsNumber
+            };
+        }
+
         public override async Task<ActionResponse<int>> GetTotalPagesAsync(PaginationDTO pagination)
         {
-            //var queryable = _context.ResidentialUnits
-            //    .Where(x => x.City!.Id == pagination.Id)
-            //    .AsQueryable();
-
             var queryable = _context.ResidentialUnits.AsQueryable();
 
             if (!string.IsNullOrWhiteSpace(pagination.Filter))
