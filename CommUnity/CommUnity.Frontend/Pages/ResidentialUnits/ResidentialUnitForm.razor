@@ -1,4 +1,4 @@
-﻿<NavigationLock OnBeforeInternalNavigation="OnBeforeInternalNavigation" />
+﻿@*<NavigationLock OnBeforeInternalNavigation="OnBeforeInternalNavigation" />
 <EditForm EditContext="editContext" OnValidSubmit="OnValidSubmit">
     <DataAnnotationsValidator />
     <div class="card">
@@ -100,5 +100,66 @@
             </div>
         </div>
     </div>
-</EditForm>
-
+</EditForm>*@
+@if (loading)
+{
+    <Loading/>
+}
+else
+{
+    <NavigationLock OnBeforeInternalNavigation="OnBeforeInternalNavigation" />
+    <EditForm EditContext="editContext" OnValidSubmit="OnValidSubmit">
+        <DataAnnotationsValidator />
+        <MudGrid>
+            <MudItem xs="12" sm="7">
+                <MudCardContent>
+                    <MudTextField Label="Nombre"
+                                  @bind-Value="ResidentialUnit.Name"
+                                  For="@(() => ResidentialUnit.Name)" />
+                    <MudTextField Label="Dirección"
+                                  @bind-Value="ResidentialUnit.Address"
+                                  For="@(() => ResidentialUnit.Address)" />
+                    <MudAutocomplete T="Country"
+                                     Label="País"
+                                     Placeholder="--Seleccione un País--"
+                                     SearchFunc="SearchCountries"
+                                     Value="selectedCountry"
+                                     ValueChanged="CountryChangedAsync"
+                                     ToStringFunc="@(e=> e==null?null : $"{e.Name}")">
+                        <ItemTemplate Context="itemContext">
+                            @itemContext.Name
+                        </ItemTemplate>
+                    </MudAutocomplete>
+                    <MudAutocomplete T="State"
+                                     Label="Estado"
+                                     Placeholder="--Seleccione un Estado--"
+                                     SearchFunc="SearchStates"
+                                     Value="selectedState"
+                                     ValueChanged="StateChangedAsync"
+                                     ToStringFunc="@(e=> e==null?null : $"{e.Name}")">
+                        <ItemTemplate Context="itemContext">
+                            @itemContext.Name
+                        </ItemTemplate>
+                    </MudAutocomplete>
+                    <MudAutocomplete T="City"
+                                     Label="Ciudad"
+                                     Placeholder="--Seleccione una Ciudad--"
+                                     SearchFunc="SearchCity"
+                                     Value="selectedCity"
+                                     ValueChanged="CityChangedAsync"
+                                     ToStringFunc="@(e=> e==null?null : $"{e.Name}")">                                    
+                        <ItemTemplate Context="itemContext">
+                            @itemContext.Name
+                        </ItemTemplate>
+                    </MudAutocomplete>
+                </MudCardContent>
+                <MudButton Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.ArrowBack" Color="Color.Info" @onclick="ReturnAction">
+                    Regresar
+                </MudButton>
+                <MudButton Variant="Variant.Filled" StartIcon="@Icons.Material.Filled.Check" Color="Color.Primary" ButtonType="ButtonType.Submit">
+                    Guardar
+                </MudButton>
+            </MudItem>
+        </MudGrid>
+    </EditForm>
+}
