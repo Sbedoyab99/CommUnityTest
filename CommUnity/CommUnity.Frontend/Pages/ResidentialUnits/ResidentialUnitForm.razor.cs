@@ -5,16 +5,22 @@ using CurrieTechnologies.Razor.SweetAlert2;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Components.Routing;
+using static MudBlazor.Colors;
 
 namespace CommUnity.FrontEnd.Pages.ResidentialUnits
 {
     public partial class ResidentialUnitForm
     {
         private EditContext editContext = null!;
+        private bool loading;
 
         private List<Country>? countries;
         private List<State>? states;
         private List<City>? cities;
+
+        private Country selectedCountry = new Country();
+        private State selectedState = new State();
+        private City selectedCity = new City();
 
         [Parameter] public bool IsEdit { get; set; } = false;
         [EditorRequired, Parameter] public ResidentialUnit ResidentialUnit { get; set; } = null!;
@@ -29,19 +35,64 @@ namespace CommUnity.FrontEnd.Pages.ResidentialUnits
             editContext = new(ResidentialUnit);
             if (!IsEdit)
             {
-                await LoadCountriesAsync();
+                await LoadCountriesAsync();  
             }
             else
             {
+                if (ResidentialUnit != null)
+                {
+                    selectedCountry = ResidentialUnit.City!.State!.Country!;
+                    selectedState = ResidentialUnit.City!.State!;
+                    selectedCity = ResidentialUnit.City!;
+                }
                 await LoadCountriesAsync();
-
                 await LoadStatesAsyn(ResidentialUnit!.City!.State!.Country!.Id);
                 await LoadCitiesAsyn(ResidentialUnit!.City!.State!.Id);
             }
         }
 
+        private async Task<IEnumerable<Country>> SearchCountries(string searchText)
+        {
+            await Task.Delay(5); 
+            if (string.IsNullOrWhiteSpace(searchText))
+            {
+                return countries!; 
+            }
+
+            return countries!
+                .Where(c => c.Name.Contains(searchText, StringComparison.InvariantCultureIgnoreCase))       
+                .ToList(); 
+        }
+
+        private async Task<IEnumerable<State>> SearchStates(string searchText)
+        {
+            await Task.Delay(5); 
+            if (string.IsNullOrWhiteSpace(searchText))
+            {
+                return states!; 
+            }
+
+            return states!
+                .Where(c => c.Name.Contains(searchText, StringComparison.InvariantCultureIgnoreCase))
+                .ToList(); 
+        }
+
+        private async Task<IEnumerable<City>> SearchCity(string searchText)
+        {
+            await Task.Delay(5); 
+            if (string.IsNullOrWhiteSpace(searchText))
+            {
+                return cities!; 
+            }
+
+            return cities!
+                .Where(c => c.Name.Contains(searchText, StringComparison.InvariantCultureIgnoreCase))
+                .ToList(); 
+        }
+
         private async Task LoadCountriesAsync()
         {
+            loading = true;
             var responseHttp = await Repository.GetAsync<List<Country>>("/api/countries/combo");
             if (responseHttp.Error)
             {
@@ -51,6 +102,7 @@ namespace CommUnity.FrontEnd.Pages.ResidentialUnits
             }
 
             countries = responseHttp.Response;
+            loading = false;
         }
 
         private async Task LoadStatesAsyn(int countryId)
@@ -79,21 +131,26 @@ namespace CommUnity.FrontEnd.Pages.ResidentialUnits
             cities = responseHttp.Response;
         }
 
-        private async Task CountryChangedAsync(ChangeEventArgs e)
+        private async Task CountryChangedAsync(Country country)
         {
-            var selectedCountry = Convert.ToInt32(e.Value!);
+            selectedCountry = country;
             states = null;
             cities = null;
-            ResidentialUnit.CityId = 0;
-            await LoadStatesAsyn(selectedCountry);
+            await LoadStatesAsyn(country.Id);
         }
 
-        private async Task StateChangedAsync(ChangeEventArgs e)
+        private async Task StateChangedAsync(State state)
         {
-            var selectedState = Convert.ToInt32(e.Value!);
+            selectedState = state;
             cities = null;
             ResidentialUnit.CityId = 0;
-            await LoadCitiesAsyn(selectedState);
+            await LoadCitiesAsyn(state.Id);
+        }
+
+        private void CityChangedAsync(City city)
+        {
+            selectedCity = city;
+            ResidentialUnit.CityId = city!.Id;
         }
 
         private async Task OnBeforeInternalNavigation(LocationChangingContext context)

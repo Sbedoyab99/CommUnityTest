@@ -16,6 +16,7 @@ namespace CommUnity.FrontEnd.Pages.ResidentialUnits
 
         private async Task CreateResidentialUnitAsync()
         {
+            residentialUnit.City = null;
             var responseHttp = await Repository.PostAsync("/api/residentialUnit", residentialUnit);
             if (responseHttp.Error)
             {
