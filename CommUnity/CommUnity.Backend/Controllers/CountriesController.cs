@@ -1,4 +1,5 @@
-﻿using CommUnity.BackEnd.UnitsOfWork.Interfaces;
+﻿using CommUnity.BackEnd.UnitsOfWork.Implementations;
+using CommUnity.BackEnd.UnitsOfWork.Interfaces;
 using CommUnity.Shared.DTOs;
 using CommUnity.Shared.Entities;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -66,6 +67,17 @@ namespace CommUnity.BackEnd.Controllers
         public async Task<IActionResult> GetComboAsync()
         {
             return Ok(await _countriesUnitOfWork.GetComboAsync());
+        }
+
+        [HttpGet("recordsNumber")]
+        public async Task<IActionResult> GetRecordsNumber([FromQuery] PaginationDTO pagination)
+        {
+            var response = await _countriesUnitOfWork.GetRecordsNumber(pagination);
+            if (response.WasSuccess)
+            {
+                return Ok(response.Result);
+            }
+            return BadRequest();
         }
     }
 }

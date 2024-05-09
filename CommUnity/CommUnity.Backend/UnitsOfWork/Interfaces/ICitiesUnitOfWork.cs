@@ -13,5 +13,7 @@ namespace CommUnity.BackEnd.UnitsOfWork.Interfaces
         Task<ActionResponse<IEnumerable<City>>> GetFullAsync(int id);
 
         Task<IEnumerable<City>> GetComboAsync(int stateId);
+
+        Task<ActionResponse<int>> GetRecordsNumber(PaginationDTO pagination);
     }
 }
