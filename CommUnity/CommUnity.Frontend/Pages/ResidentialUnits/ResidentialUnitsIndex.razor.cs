@@ -14,7 +14,6 @@ namespace CommUnity.FrontEnd.Pages.ResidentialUnits
 
         private readonly int[] pageSizeOptions = { 10, 25, 50, int.MaxValue };
         private MudTable<ResidentialUnit> table = new();
-        private int currentRecordsNumber = 10;
         private int totalRecords = 0;
         private bool loading;
 
@@ -105,6 +104,31 @@ namespace CommUnity.FrontEnd.Pages.ResidentialUnits
             Filter = value;
             await LoadAsync();
             await table.ReloadServerData();
+        }
+
+        private void CreateAction()
+        {
+            NavigationManager.NavigateTo("/residentialUnits/create");
+        }
+
+        private void EditAction(ResidentialUnit residentialUnit)
+        {
+            NavigationManager.NavigateTo($"/residentialUnits/edit/{residentialUnit.Id}");
+        }
+
+        private void ApartmentsAction(ResidentialUnit residentialUnit)
+        {
+            NavigationManager.NavigateTo($"/apartments/{residentialUnit.Id}");
+        }
+
+        private void CommonZonesAction(ResidentialUnit residentialUnit)
+        {
+            NavigationManager.NavigateTo($"/commonZones/{residentialUnit.Id}");
+        }
+
+        private void NewsAction(ResidentialUnit residentialUnit)
+        {
+            NavigationManager.NavigateTo($"/news/{residentialUnit.Id}");
         }
 
         private async Task DeleteAsync(ResidentialUnit residentialUnit)

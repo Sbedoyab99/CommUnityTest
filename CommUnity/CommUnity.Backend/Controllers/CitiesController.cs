@@ -1,4 +1,5 @@
-﻿using CommUnity.BackEnd.UnitsOfWork.Interfaces;
+﻿using CommUnity.BackEnd.UnitsOfWork.Implementations;
+using CommUnity.BackEnd.UnitsOfWork.Interfaces;
 using CommUnity.Shared.DTOs;
 using CommUnity.Shared.Entities;
 using Microsoft.AspNetCore.Mvc;
@@ -53,6 +54,17 @@ namespace CommUnity.BackEnd.Controllers
         public async Task<IActionResult> GetComboAsync(int stateId)
         {
             return Ok(await _citiesUnitOfWork.GetComboAsync(stateId));
+        }
+
+        [HttpGet("recordsNumber")]
+        public async Task<IActionResult> GetRecordsNumber([FromQuery] PaginationDTO pagination)
+        {
+            var response = await _citiesUnitOfWork.GetRecordsNumber(pagination);
+            if (response.WasSuccess)
+            {
+                return Ok(response.Result);
+            }
+            return BadRequest();
         }
     }
 }

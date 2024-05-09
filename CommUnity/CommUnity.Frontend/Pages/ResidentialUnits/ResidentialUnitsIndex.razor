@@ -17,7 +17,7 @@ else
         <ToolBarContent>
             <div class="d-flex justify-content-between">
                 <MudText Typo="Typo.h6" Class="me-4"><i class="bi bi-buildings"></i> Unidades Residenciales</MudText>
-                <a href="/residentialUnits/create"><MudButton Variant="Variant.Outlined" EndIcon="@Icons.Material.Filled.Add" Color="Color.Info">Crear</MudButton></a>
+                <MudButton Variant="Variant.Outlined" EndIcon="@Icons.Material.Filled.Add" Color="Color.Info" OnClick="CreateAction">Crear</MudButton>
             </div>
             <MudSpacer />
             <FilterComponent ApplyFilter="SetFilterValue" />
@@ -36,29 +36,23 @@ else
             <MudTd DataLabel="Direccion">@context.Address</MudTd>
             <MudTd DataLabel="Ciudad">@context.City?.Name</MudTd>
             <MudTd DataLabel="Apartamentos">
-                <a href="/apartments/@context.Id">
-                    <MudButton Variant="Variant.Filled" EndIcon="@Icons.Material.Filled.OtherHouses" Color="Color.Info">
-                        @context.ApartmentsNumber
-                    </MudButton> 
-                </a>
+                <MudButton Variant="Variant.Filled" EndIcon="@Icons.Material.Filled.OtherHouses" Color="Color.Info" OnClick="@(() => ApartmentsAction(@context))">
+                    @context.ApartmentsNumber
+                </MudButton> 
             </MudTd>
             <MudTd DataLabel="Zonas Comunes">
-                <a href="/commonzones/@context.Id">
-                    <MudButton Variant="Variant.Filled" EndIcon="@Icons.Material.Filled.SportsGymnastics" Color="Color.Primary">
-                        @context.CommonZonesNumber
-                    </MudButton>
-                </a>
+                <MudButton Variant="Variant.Filled" EndIcon="@Icons.Material.Filled.SportsGymnastics" Color="Color.Primary" OnClick="@(() => CommonZonesAction(@context))">
+                    @context.CommonZonesNumber
+                </MudButton>
             </MudTd>
             <MudTd DataLabel="Noticias">
-                <a href="/news/@context.Id">
-                    <MudButton Variant="Variant.Filled" EndIcon="@Icons.Material.Filled.Newspaper" Color="Color.Tertiary">
-                        @context.NewsNumber
-                    </MudButton>
-                </a>
+                <MudButton Variant="Variant.Filled" EndIcon="@Icons.Material.Filled.Newspaper" Color="Color.Tertiary" OnClick="@(() => NewsAction(@context))">
+                    @context.NewsNumber
+                </MudButton>
             </MudTd>
             <MudTd DataLabel="Acciones">
-                <a href="/residentialUnits/edit/@context.Id"><MudButton Variant="Variant.Filled" EndIcon="@Icons.Material.Filled.Edit" Color="Color.Warning">Editar</MudButton></a>
-                <MudButton Variant="Variant.Filled" EndIcon="@Icons.Material.Filled.Delete" Color="Color.Error" @onclick=@(() => DeleteAsync(@context))>Eliminar</MudButton>
+                <MudButton Variant="Variant.Filled" EndIcon="@Icons.Material.Filled.Edit" Color="Color.Warning" OnClick="@(() => EditAction(@context))">Editar</MudButton>
+                <MudButton Variant="Variant.Filled" EndIcon="@Icons.Material.Filled.Delete" Color="Color.Error" OnClick=@(() => DeleteAsync(@context))>Eliminar</MudButton>
             </MudTd>
         </RowTemplate>
         <NoRecordsContent>

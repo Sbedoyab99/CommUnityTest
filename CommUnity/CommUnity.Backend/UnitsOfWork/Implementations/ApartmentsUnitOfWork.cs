@@ -25,5 +25,7 @@ namespace CommUnity.BackEnd.UnitsOfWork.Implementations
         public Task<ActionResponse<IEnumerable<Apartment>>> GetFullAsync(int id) => _apartmentsRepository.GetFullAsync(id);
 
         public override async Task<ActionResponse<int>> GetTotalPagesAsync(PaginationDTO pagination) => await _apartmentsRepository.GetTotalPagesAsync(pagination);
+
+        public async Task<ActionResponse<int>> GetRecordsNumber(PaginationDTO pagination) => await _apartmentsRepository.GetRecordsNumber(pagination);
     }
 }

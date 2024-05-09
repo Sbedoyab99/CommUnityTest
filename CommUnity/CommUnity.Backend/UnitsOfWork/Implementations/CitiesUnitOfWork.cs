@@ -1,4 +1,5 @@
-﻿using CommUnity.BackEnd.Repositories.Interfaces;
+﻿using CommUnity.BackEnd.Repositories.Implementations;
+using CommUnity.BackEnd.Repositories.Interfaces;
 using CommUnity.BackEnd.UnitsOfWork.Interfaces;
 using CommUnity.Shared.DTOs;
 using CommUnity.Shared.Entities;
@@ -23,5 +24,6 @@ namespace CommUnity.BackEnd.UnitsOfWork.Implementations
 
         public async Task<IEnumerable<City>> GetComboAsync(int stateId) => await _citiesRepository.GetComboAsync(stateId);
 
+        public async Task<ActionResponse<int>> GetRecordsNumber(PaginationDTO pagination) => await _citiesRepository.GetRecordsNumber(pagination);
     }
 }

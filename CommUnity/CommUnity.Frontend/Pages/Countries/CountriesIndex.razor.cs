@@ -2,103 +2,48 @@
 using CommUnity.Shared.Entities;
 using CurrieTechnologies.Razor.SweetAlert2;
 using Microsoft.AspNetCore.Components;
+using MudBlazor;
 using System.Net;
 
 namespace CommUnity.FrontEnd.Pages.Countries
 {
     public partial class CountriesIndex
     {
-        private int currentPage = 1;
-        private int totalPages;
-        private string currentRecordsNumber = "10";
+        public List<Country>? Countries { get; set; }
+
+        private MudTable<Country> table = new();
+        private readonly int[] pageSizeOptions = { 10, 25, 50, int.MaxValue };
+        private int totalRecords = 0;
+        private bool loading;
 
         [Inject] private IRepository Repository { get; set; } = null!;
         [Inject] private SweetAlertService SweetAlertService { get; set; } = null!;
         [Inject] private NavigationManager NavigationManager { get; set; } = null!;
 
-        [Parameter, SupplyParameterFromQuery] public string Page { get; set; } = string.Empty;
         [Parameter, SupplyParameterFromQuery] public string Filter { get; set; } = string.Empty;
-        [Parameter, SupplyParameterFromQuery] public string RecordsNumber { get; set; } = string.Empty;
-
-        public List<Country>? Countries { get; set; }
 
         protected override async Task OnInitializedAsync()
         {
             await LoadAsync();
         }
 
-        private async Task SelectedPageAsync(int page)
+
+        private async Task LoadAsync()
         {
-            currentPage = page;
-            await LoadAsync(page);
+            await LoadTotalRecords();
         }
 
-        private async Task LoadAsync(int page = 1)
+        private async Task<bool> LoadTotalRecords()
         {
-            if (!string.IsNullOrWhiteSpace(Page))
-            {
-                page = Convert.ToInt32(Page);
-            }
-            var ok = await LoadListAsync(page);
-            if (ok)
-            {
-                if(RecordsNumber != "todos")
-                {
-                    await LoadPagesAsync();
-                }
-            }
-        }
-
-        private async Task<bool> LoadListAsync(int page)
-        {
+            loading = true;
             string baseUrl = "api/countries";
             string url;
-            if (currentRecordsNumber == "todos")
-            {
-                url = $"{baseUrl}/full";
-            } 
-            else
-            {
-                url = $"{baseUrl}?page={page}&recordsnumber={currentRecordsNumber}";
-                if (!string.IsNullOrWhiteSpace(Filter))
-                {
-                    url += $"&filter={Filter}";
-                }
-            }
 
-
-            var responseHttp = await Repository.GetAsync<List<Country>>(url);
-            if (responseHttp.Error)
+            url = $"{baseUrl}/recordsnumber?page=1&recordsnumber={int.MaxValue}";
+            if (!string.IsNullOrWhiteSpace(Filter))
             {
-                var message = await responseHttp.GetErrorMessageAsync();
-                await SweetAlertService.FireAsync(new SweetAlertOptions
-                {
-                    Title = "Error",
-                    Text = message,
-                    Icon = SweetAlertIcon.Error
-                });
+                url += $"&filter={Filter}";
             }
-            Countries = responseHttp.Response;
-            return true;
-        }
-
-        private async Task LoadPagesAsync()
-        {
-            string baseUrl = "api/countries";
-            string url;
-            if (currentRecordsNumber == "todos")
-            {
-                return;
-            }
-            else
-            {
-                url = $"{baseUrl}/totalpages?recordsnumber={currentRecordsNumber}";
-                if (!string.IsNullOrWhiteSpace(Filter))
-                {
-                    url += $"&filter={Filter}";
-                }
-            }
-
             var responseHttp = await Repository.GetAsync<int>(url);
             if (responseHttp.Error)
             {
@@ -109,29 +54,70 @@ namespace CommUnity.FrontEnd.Pages.Countries
                     Text = message,
                     Icon = SweetAlertIcon.Error
                 });
+                return false;
             }
-            totalPages = responseHttp.Response;
+            totalRecords = responseHttp.Response;
+            loading = false;
+            return true;
         }
 
-        private async Task ApplyFilterAsync()
+        private async Task<TableData<Country>> LoadListAsync(TableState state)
         {
-            int page = 1;
-            await LoadAsync(page);
-            await SelectedPageAsync(page);
+            int page = state.Page + 1;
+            int pageSize = state.PageSize;
+
+            string baseUrl = "api/countries";
+            string url;
+
+            url = $"{baseUrl}?page={page}&recordsnumber={pageSize}";
+            if (!string.IsNullOrWhiteSpace(Filter))
+            {
+                url += $"&filter={Filter}";
+            }
+            
+            var responseHttp = await Repository.GetAsync<List<Country>>(url);
+            if (responseHttp.Error)
+            {
+                var message = await responseHttp.GetErrorMessageAsync();
+                await SweetAlertService.FireAsync(new SweetAlertOptions
+                {
+                    Title = "Error",
+                    Text = message,
+                    Icon = SweetAlertIcon.Error
+                });
+                return new TableData<Country> { Items = new List<Country>(), TotalItems = 0 };
+            }
+            if (responseHttp.Response == null)
+            {
+                return new TableData<Country> { Items = new List<Country>(), TotalItems = 0 };
+            }
+            return new TableData<Country>
+            {
+                Items = responseHttp.Response,
+                TotalItems = totalRecords
+            };
         }
 
         private async Task SetFilterValue(string value)
         {
             Filter = value;
-            await ApplyFilterAsync();
+            await LoadAsync();
+            await table.ReloadServerData();
         }
 
-        private async Task SetRecordsNumber(string value)
+        private void CreateAction()
         {
-            int page = 1;
-            RecordsNumber = value;
-            currentRecordsNumber = value;
-            await LoadAsync(page);
+            NavigationManager.NavigateTo("/countries/create");
+        }
+
+        private void StatesAction(Country country)
+        {
+            NavigationManager.NavigateTo($"/countries/details/{country.Id}");
+        }
+
+        private void EditAction(Country country)
+        {
+            NavigationManager.NavigateTo($"/countries/edit/{country.Id}");
         }
 
         private async Task DeleteAsync(Country country)
@@ -169,6 +155,7 @@ namespace CommUnity.FrontEnd.Pages.Countries
                 return;
             }
             await LoadAsync();
+            await table.ReloadServerData();
             var toast = SweetAlertService.Mixin(new SweetAlertOptions
             {
                 Toast = true,

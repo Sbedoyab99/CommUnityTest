@@ -4,6 +4,7 @@ using CurrieTechnologies.Razor.SweetAlert2;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Components.Routing;
+using MudBlazor;
 using System.Net;
 
 namespace CommUnity.FrontEnd.Pages.Pets
@@ -11,26 +12,67 @@ namespace CommUnity.FrontEnd.Pages.Pets
 
     public partial class PetIndex
     {
-
         private Apartment? apartment;
-        private List<Pet>? pet;
+        private List<Pet>? pets;
 
-        private int currentPage = 1;
-        private int totalPages;
-        private string currentRecordsNumber = "10";
+        private MudTable<Pet> table = new();
+        private readonly int[] pageSizeOptions = { 10, 25, 50, int.MaxValue };
+        private int totalRecords = 0;
+        private bool loading;
 
         [Parameter] public int ApartmentId { get; set; }
+
         [Inject] private IRepository Repository { get; set; } = null!;
         [Inject] private SweetAlertService SweetAlertService { get; set; } = null!;
         [Inject] private NavigationManager NavigationManager { get; set; } = null!;
 
-        [Parameter, SupplyParameterFromQuery] public string Page { get; set; } = string.Empty;
         [Parameter, SupplyParameterFromQuery] public string Filter { get; set; } = string.Empty;
-        [Parameter, SupplyParameterFromQuery] public string RecordsNumber { get; set; } = string.Empty;
 
         protected override async Task OnInitializedAsync()
         {
             await LoadAsync();
+        }
+
+        private async Task LoadAsync()
+        {
+            await LoadTotalRecords();
+        }
+
+        private async Task<bool> LoadTotalRecords()
+        {
+            loading = true;
+            if (apartment is null)
+            {
+                var ok = await LoadApartmentAsync();
+                if (!ok)
+                {
+                    NoApartment();
+                    return false;
+                }
+            }
+            string baseUrl = "api/commonzones";
+            string url;
+
+            url = $"{baseUrl}/recordsnumber?id={ApartmentId}&page=1&recordsnumber={int.MaxValue}";
+            if (!string.IsNullOrWhiteSpace(Filter))
+            {
+                url += $"&filter={Filter}";
+            }
+            var responseHttp = await Repository.GetAsync<int>(url);
+            if (responseHttp.Error)
+            {
+                var message = await responseHttp.GetErrorMessageAsync();
+                await SweetAlertService.FireAsync(new SweetAlertOptions
+                {
+                    Title = "Error",
+                    Text = message,
+                    Icon = SweetAlertIcon.Error
+                });
+                return false;
+            }
+            totalRecords = responseHttp.Response;
+            loading = false;
+            return true;
         }
 
         private async Task<bool> LoadApartmentAsync()
@@ -52,49 +94,20 @@ namespace CommUnity.FrontEnd.Pages.Pets
             return true;
         }
 
-        private async Task SelectedPageAsync(int page)
+        private async Task<TableData<Pet>> LoadListAsync(TableState state)
         {
-            currentPage = page;
-            await LoadAsync(page);
-        }
+            int page = state.Page + 1;
+            int pageSize = state.PageSize;
 
-        private async Task LoadAsync(int page = 1)
-        {
-            if (!string.IsNullOrWhiteSpace(Page))
-            {
-                page = Convert.ToInt32(Page);
-            }
-            var ok = await LoadApartmentAsync();
-            if (ok)
-            {
-                ok = await LoadListAsync(page);
-                if (ok)
-                {
-                    if (RecordsNumber != "todos")
-                    {
-                        await LoadPagesAsync();
-                    }
-                }
-            }
-        }
-
-        private async Task<bool> LoadListAsync(int page)
-        {
             string baseUrl = $"api/pets";
             string url;
-            if (currentRecordsNumber == "todos")
-            {
-                url = $"{baseUrl}/all?id={ApartmentId}";
-            }
-            else
-            {
-                url = $"{baseUrl}?id={ApartmentId}&page={page}&recordsnumber={currentRecordsNumber}";
-                if (!string.IsNullOrWhiteSpace(Filter))
-                {
-                    url += $"&filter={Filter}";
-                }
 
+            url = $"{baseUrl}?id={ApartmentId}&page={page}&recordsnumber={pageSize}";
+            if (!string.IsNullOrWhiteSpace(Filter))
+            {
+                url += $"&filter={Filter}";
             }
+            
             var responseHttp = await Repository.GetAsync<List<Pet>>(url);
             if (responseHttp.Error)
             {
@@ -105,61 +118,44 @@ namespace CommUnity.FrontEnd.Pages.Pets
                     Text = message,
                     Icon = SweetAlertIcon.Error
                 });
+                return new TableData<Pet> { Items = new List<Pet>(), TotalItems = 0 };
             }
-            pet = responseHttp.Response;
-            return true;
-        }
-
-        private async Task LoadPagesAsync()
-        {
-            string baseUrl = $"api/pets";
-            string url;
-            if (currentRecordsNumber == "todos")
+            if (responseHttp.Response == null)
             {
-                return;
+                return new TableData<Pet> { Items = new List<Pet>(), TotalItems = 0 };
             }
-            else
+            return new TableData<Pet>
             {
-                url = $"{baseUrl}/totalpages?id={ApartmentId}&recordsnumber={currentRecordsNumber}";
-                if (!string.IsNullOrWhiteSpace(Filter))
-                {
-                    url += $"&filter={Filter}";
-                }
-            }
-
-            var responseHttp = await Repository.GetAsync<int>(url);
-            if (responseHttp.Error)
-            {
-                var message = await responseHttp.GetErrorMessageAsync();
-                await SweetAlertService.FireAsync(new SweetAlertOptions
-                {
-                    Title = "Error",
-                    Text = message,
-                    Icon = SweetAlertIcon.Error
-                });
-            }
-            totalPages = responseHttp.Response;
-        }
-
-        private async Task ApplyFilterAsync()
-        {
-            int page = 1;
-            await LoadAsync(page);
-            await SelectedPageAsync(page);
+                Items = responseHttp.Response,
+                TotalItems = totalRecords
+            };
         }
 
         private async Task SetFilterValue(string value)
         {
             Filter = value;
-            await ApplyFilterAsync();
+            await LoadAsync();
+            await table.ReloadServerData();
         }
 
-        private async Task SetRecordsNumber(string value)
+        private void ReturnAction()
         {
-            int page = 1;
-            RecordsNumber = value;
-            currentRecordsNumber = value;
-            await LoadAsync(page);
+            NavigationManager.NavigateTo($"/apartments/{apartment?.ResidentialUnitId}");
+        }
+
+        private void CreateAction()
+        {
+            NavigationManager.NavigateTo($"/pets/create/{ApartmentId}");
+        }
+
+        private void EditAction(Pet pet)
+        {
+            NavigationManager.NavigateTo($"/pets/edit/{pet.Id}");
+        }
+
+        private void NoApartment()
+        {
+            NavigationManager.NavigateTo("/residentialunits");
         }
 
         private async Task DeleteAsync(Pet pet)
@@ -199,6 +195,7 @@ namespace CommUnity.FrontEnd.Pages.Pets
                 return;
             }
             await LoadAsync();
+            await table.ReloadServerData();
             var toast = SweetAlertService.Mixin(new SweetAlertOptions
             {
                 Toast = true,
