@@ -2,6 +2,7 @@ using CommUnity.FrontEnd.Repositories;
 using CommUnity.Shared.Entities;
 using CurrieTechnologies.Razor.SweetAlert2;
 using Microsoft.AspNetCore.Components;
+using MudBlazor;
 using System.Net;
 
 namespace CommUnity.FrontEnd.Pages.Countries
@@ -11,9 +12,10 @@ namespace CommUnity.FrontEnd.Pages.Countries
         private Country? country;
         private List<State>? states;
 
-        private int currentPage = 1;
-        private int totalPages;
-        private string currentRecordsNumber = "10";
+        private MudTable<State> table = new();
+        private readonly int[] pageSizeOptions = { 10, 25, 50, int.MaxValue };
+        private int totalRecords = 0;
+        private bool loading;
 
         [Parameter] public int CountryId { get; set; }
 
@@ -21,13 +23,16 @@ namespace CommUnity.FrontEnd.Pages.Countries
         [Inject] private SweetAlertService SweetAlertService { get; set; } = null!;
         [Inject] private NavigationManager NavigationManager { get; set; } = null!;
 
-        [Parameter, SupplyParameterFromQuery] public string Page { get; set; } = string.Empty;
         [Parameter, SupplyParameterFromQuery] public string Filter { get; set; } = string.Empty;
-        [Parameter, SupplyParameterFromQuery] public string RecordsNumber { get; set; } = string.Empty;
 
         protected override async Task OnInitializedAsync()
         {
             await LoadAsync();
+        }
+
+        private async Task LoadAsync()
+        {
+            await LoadTotalRecords();
         }
 
         private async Task<bool> LoadCountryAsync()
@@ -49,49 +54,26 @@ namespace CommUnity.FrontEnd.Pages.Countries
             return true;
         }
 
-        private async Task SelectedPageAsync(int page)
+        private async Task<bool> LoadTotalRecords()
         {
-            currentPage = page;
-            await LoadAsync(page);
-        }
-
-        private async Task LoadAsync(int page = 1)
-        {
-            if (!string.IsNullOrWhiteSpace(Page))
+            loading = true;
+            if(country is null)
             {
-                page = Convert.ToInt32(Page);
-            }
-            var ok = await LoadCountryAsync();
-            if (ok)
-            {
-                ok = await LoadListAsync(page);
-                if (ok)
+                var ok = await LoadCountryAsync();
+                if (!ok)
                 {
-                    if (RecordsNumber != "todos")
-                    {
-                        await LoadPagesAsync();
-                    }
+                    NoCountry();
+                    return false;
                 }
             }
-        }
-
-        private async Task LoadPagesAsync()
-        {
-            string baseUrl = $"api/states";
+            string baseUrl = "api/states";
             string url;
-            if (currentRecordsNumber == "todos")
-            {
-                return;
-            }
-            else
-            {
-                url = $"{baseUrl}/totalpages?id={CountryId}&recordsnumber={currentRecordsNumber}";
-                if (!string.IsNullOrWhiteSpace(Filter))
-                {
-                    url += $"&filter={Filter}";
-                }
-            }
 
+            url = $"{baseUrl}/recordsnumber?id={CountryId}&page=1&recordsnumber={int.MaxValue}";
+            if (!string.IsNullOrWhiteSpace(Filter))
+            {
+                url += $"&filter={Filter}";
+            }
             var responseHttp = await Repository.GetAsync<int>(url);
             if (responseHttp.Error)
             {
@@ -102,25 +84,25 @@ namespace CommUnity.FrontEnd.Pages.Countries
                     Text = message,
                     Icon = SweetAlertIcon.Error
                 });
+                return false;
             }
-            totalPages = responseHttp.Response;
+            totalRecords = responseHttp.Response;
+            loading = false;
+            return true;
         }
 
-        private async Task<bool> LoadListAsync(int page)
+        private async Task<TableData<State>> LoadListAsync(TableState state)
         {
+            int page = state.Page + 1;
+            int pageSize = state.PageSize;
+
             string baseUrl = $"api/states";
             string url;
-            if (currentRecordsNumber == "todos")
+
+            url = $"{baseUrl}?id={CountryId}&page={page}&recordsnumber={pageSize}";
+            if (!string.IsNullOrWhiteSpace(Filter))
             {
-                url = $"{baseUrl}/all?id={CountryId}";
-            }
-            else
-            {
-                url = $"{baseUrl}?id={CountryId}&page={page}&recordsnumber={currentRecordsNumber}";
-                if (!string.IsNullOrWhiteSpace(Filter))
-                {
-                    url += $"&filter={Filter}";
-                }
+                url += $"&filter={Filter}";
             }
 
             var responseHttp = await Repository.GetAsync<List<State>>(url);
@@ -133,30 +115,49 @@ namespace CommUnity.FrontEnd.Pages.Countries
                     Text = message,
                     Icon = SweetAlertIcon.Error
                 });
+                return new TableData<State> { Items = new List<State>(), TotalItems = 0 };
             }
-            states = responseHttp.Response;
-            return true;
-        }
-
-        private async Task ApplyFilterAsync()
-        {
-            int page = 1;
-            await LoadAsync(page);
-            await SelectedPageAsync(page);
+            if (responseHttp.Response == null)
+            {
+                return new TableData<State> { Items = new List<State>(), TotalItems = 0 };
+            }
+            return new TableData<State>
+            {
+                Items = responseHttp.Response,
+                TotalItems = totalRecords
+            };
         }
 
         private async Task SetFilterValue(string value)
         {
             Filter = value;
-            await ApplyFilterAsync();
+            await LoadAsync();
+            await table.ReloadServerData();
         }
 
-        private async Task SetRecordsNumber(string value)
+        private void ReturnAction()
         {
-            int page = 1;
-            RecordsNumber = value;
-            currentRecordsNumber = value;
-            await LoadAsync(page);
+            NavigationManager.NavigateTo("/countries");
+        }
+
+        private void CreateAction()
+        {
+            NavigationManager.NavigateTo($"/states/create/{CountryId}");
+        }
+
+        private void EditAction(State state)
+        {
+            NavigationManager.NavigateTo($"/states/edit/{state.Id}");
+        }
+
+        private void CitiesAction(State state)
+        {
+            NavigationManager.NavigateTo($"/states/details/{state.Id}");
+        }
+
+        private void NoCountry()
+        {
+            NavigationManager.NavigateTo("/countries");
         }
 
         private async Task DeleteAsync(State state)
@@ -196,6 +197,7 @@ namespace CommUnity.FrontEnd.Pages.Countries
                 return;
             }
             await LoadAsync();
+            await table.ReloadServerData();
             var toast = SweetAlertService.Mixin(new SweetAlertOptions
             {
                 Toast = true,

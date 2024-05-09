@@ -4,7 +4,10 @@ using CurrieTechnologies.Razor.SweetAlert2;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Components.Routing;
+using MudBlazor;
+using System.Diagnostics.Metrics;
 using System.Net;
+using static MudBlazor.CategoryTypes;
 
 namespace CommUnity.FrontEnd.Pages.Newss
 {
@@ -14,22 +17,27 @@ namespace CommUnity.FrontEnd.Pages.Newss
         private ResidentialUnit? residentialUnit;
         private List<News>? news;
 
-        private int currentPage = 1;
-        private int totalPages;
-        private string currentRecordsNumber = "10";
+        private MudTable<News> table = new();
+        private readonly int[] pageSizeOptions = { 10, 25, 50, int.MaxValue };
+        private int totalRecords = 0;
+        private bool loading;
 
         [Parameter] public int ResidentialUnitId { get; set; }
+
         [Inject] private IRepository Repository { get; set; } = null!;
         [Inject] private SweetAlertService SweetAlertService { get; set; } = null!;
         [Inject] private NavigationManager NavigationManager { get; set; } = null!;
 
-        [Parameter, SupplyParameterFromQuery] public string Page { get; set; } = string.Empty;
         [Parameter, SupplyParameterFromQuery] public string Filter { get; set; } = string.Empty;
-        [Parameter, SupplyParameterFromQuery] public string RecordsNumber { get; set; } = string.Empty;
 
         protected override async Task OnInitializedAsync()
         {
             await LoadAsync();
+        }
+
+        private async Task LoadAsync(int page = 1)
+        {
+            await LoadTotalRecords();
         }
 
         private async Task<bool> LoadResidentialUnitAsync()
@@ -51,81 +59,26 @@ namespace CommUnity.FrontEnd.Pages.Newss
             return true;
         }
 
-        private async Task SelectedPageAsync(int page)
+        private async Task<bool> LoadTotalRecords()
         {
-            currentPage = page;
-            await LoadAsync(page);
-        }
-
-        private async Task LoadAsync(int page = 1)
-        {
-            if (!string.IsNullOrWhiteSpace(Page))
+            loading = true;
+            if (residentialUnit is null)
             {
-                page = Convert.ToInt32(Page);
-            }
-            var ok = await LoadResidentialUnitAsync();
-            if (ok)
-            {
-                ok = await LoadListAsync(page);
-                if (ok)
+                var ok = await LoadResidentialUnitAsync();
+                if (!ok)
                 {
-                    if (RecordsNumber != "todos")
-                    {
-                        await LoadPagesAsync();
-                    }
+                    NoResidentialUnit();
+                    return false;
                 }
             }
-        }
-
-        private async Task<bool> LoadListAsync(int page)
-        {
-            string baseUrl = $"api/news";
+            string baseUrl = "api/news";
             string url;
-            if (currentRecordsNumber == "todos")
-            {
-                url = $"{baseUrl}/all?id={ResidentialUnitId}";
-            }
-            else
-            {
-                url = $"{baseUrl}?id={ResidentialUnitId}&page={page}&recordsnumber={currentRecordsNumber}";
-                if (!string.IsNullOrWhiteSpace(Filter))
-                {
-                    url += $"&filter={Filter}";
-                }
 
-            }
-            var responseHttp = await Repository.GetAsync<List<News>>(url);
-            if (responseHttp.Error)
+            url = $"{baseUrl}/recordsnumber?id={ResidentialUnitId}&page=1&recordsnumber={int.MaxValue}";
+            if (!string.IsNullOrWhiteSpace(Filter))
             {
-                var message = await responseHttp.GetErrorMessageAsync();
-                await SweetAlertService.FireAsync(new SweetAlertOptions
-                {
-                    Title = "Error",
-                    Text = message,
-                    Icon = SweetAlertIcon.Error
-                });
+                url += $"&filter={Filter}";
             }
-            news = responseHttp.Response;
-            return true;
-        }
-
-        private async Task LoadPagesAsync()
-        {
-            string baseUrl = $"api/news";
-            string url;
-            if (currentRecordsNumber == "todos")
-            {
-                return;
-            }
-            else
-            {
-                url = $"{baseUrl}/totalpages?id={ResidentialUnitId}&recordsnumber={currentRecordsNumber}";
-                if (!string.IsNullOrWhiteSpace(Filter))
-                {
-                    url += $"&filter={Filter}";
-                }
-            }
-
             var responseHttp = await Repository.GetAsync<int>(url);
             if (responseHttp.Error)
             {
@@ -136,29 +89,75 @@ namespace CommUnity.FrontEnd.Pages.Newss
                     Text = message,
                     Icon = SweetAlertIcon.Error
                 });
+                return false;
             }
-            totalPages = responseHttp.Response;
+            totalRecords = responseHttp.Response;
+            loading = false;
+            return true;
         }
 
-        private async Task ApplyFilterAsync()
+        private async Task<TableData<News>> LoadListAsync(TableState state)
         {
-            int page = 1;
-            await LoadAsync(page);
-            await SelectedPageAsync(page);
+            int page = state.Page + 1;
+            int pageSize = state.PageSize;
+
+            string baseUrl = $"api/news";
+            string url;
+
+            url = $"{baseUrl}?id={ResidentialUnitId}&page={page}&recordsnumber={pageSize}";
+            if (!string.IsNullOrWhiteSpace(Filter))
+            {
+                url += $"&filter={Filter}";
+            }
+            
+            var responseHttp = await Repository.GetAsync<List<News>>(url);
+            if (responseHttp.Error)
+            {
+                var message = await responseHttp.GetErrorMessageAsync();
+                await SweetAlertService.FireAsync(new SweetAlertOptions
+                {
+                    Title = "Error",
+                    Text = message,
+                    Icon = SweetAlertIcon.Error
+                });
+                return new TableData<News> { Items = new List<News>(), TotalItems = 0 };
+            }
+            if (responseHttp.Response == null)
+            {
+                return new TableData<News> { Items = new List<News>(), TotalItems = 0 };
+            }
+            return new TableData<News>
+            {
+                Items = responseHttp.Response,
+                TotalItems = totalRecords
+            };
         }
 
         private async Task SetFilterValue(string value)
         {
             Filter = value;
-            await ApplyFilterAsync();
+            await LoadAsync();
+            await table.ReloadServerData();
         }
 
-        private async Task SetRecordsNumber(string value)
+        private void ReturnAction()
         {
-            int page = 1;
-            RecordsNumber = value;
-            currentRecordsNumber = value;
-            await LoadAsync(page);
+            NavigationManager.NavigateTo("/residentialunits");
+        }
+
+        private void CreateAction()
+        {
+            NavigationManager.NavigateTo($"/news/create/{ResidentialUnitId}");
+        }
+
+        private void EditAction(News news)
+        {
+            NavigationManager.NavigateTo($"/news/edit/{news.Id}");
+        }
+
+        private void NoResidentialUnit()
+        {
+            NavigationManager.NavigateTo("/residentialunits");
         }
 
         private async Task DeleteAsync(News news)
@@ -198,6 +197,7 @@ namespace CommUnity.FrontEnd.Pages.Newss
                 return;
             }
             await LoadAsync();
+            await table.ReloadServerData();
             var toast = SweetAlertService.Mixin(new SweetAlertOptions
             {
                 Toast = true,
@@ -207,8 +207,5 @@ namespace CommUnity.FrontEnd.Pages.Newss
             });
             await toast.FireAsync("Registro Eliminado", string.Empty, SweetAlertIcon.Success);
         }
-
     }
-
-
 }

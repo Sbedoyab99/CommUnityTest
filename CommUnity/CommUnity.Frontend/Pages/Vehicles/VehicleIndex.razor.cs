@@ -2,6 +2,7 @@
 using CommUnity.Shared.Entities;
 using CurrieTechnologies.Razor.SweetAlert2;
 using Microsoft.AspNetCore.Components;
+using MudBlazor;
 using System.Net;
 
 namespace CommUnity.FrontEnd.Pages.Vehicles
@@ -11,24 +12,29 @@ namespace CommUnity.FrontEnd.Pages.Vehicles
     {
 
         private Apartment? apartment;
-        private List<Vehicle>? vehicle;
+        private List<Vehicle>? vehicles;
 
-        private int currentPage = 1;
-        private int totalPages;
-        private string currentRecordsNumber = "10";
+        private MudTable<Vehicle> table = new();
+        private readonly int[] pageSizeOptions = { 10, 25, 50, int.MaxValue };
+        private int totalRecords = 0;
+        private bool loading;
 
         [Parameter] public int ApartmentId { get; set; }
+
         [Inject] private IRepository Repository { get; set; } = null!;
         [Inject] private SweetAlertService SweetAlertService { get; set; } = null!;
         [Inject] private NavigationManager NavigationManager { get; set; } = null!;
 
-        [Parameter, SupplyParameterFromQuery] public string Page { get; set; } = string.Empty;
         [Parameter, SupplyParameterFromQuery] public string Filter { get; set; } = string.Empty;
-        [Parameter, SupplyParameterFromQuery] public string RecordsNumber { get; set; } = string.Empty;
 
         protected override async Task OnInitializedAsync()
         {
             await LoadAsync();
+        }
+
+        private async Task LoadAsync()
+        {
+            await LoadTotalRecords();
         }
 
         private async Task<bool> LoadApartmentAsync()
@@ -50,81 +56,26 @@ namespace CommUnity.FrontEnd.Pages.Vehicles
             return true;
         }
 
-        private async Task SelectedPageAsync(int page)
+        private async Task<bool> LoadTotalRecords()
         {
-            currentPage = page;
-            await LoadAsync(page);
-        }
-
-        private async Task LoadAsync(int page = 1)
-        {
-            if (!string.IsNullOrWhiteSpace(Page))
+            loading = true;
+            if (apartment is null)
             {
-                page = Convert.ToInt32(Page);
-            }
-            var ok = await LoadApartmentAsync();
-            if (ok)
-            {
-                ok = await LoadListAsync(page);
-                if (ok)
+                var ok = await LoadApartmentAsync();
+                if (!ok)
                 {
-                    if (RecordsNumber != "todos")
-                    {
-                        await LoadPagesAsync();
-                    }
+                    NoApartment();
+                    return false;
                 }
             }
-        }
-
-        private async Task<bool> LoadListAsync(int page)
-        {
-            string baseUrl = $"api/vehicles";
+            string baseUrl = "api/vehicles";
             string url;
-            if (currentRecordsNumber == "todos")
-            {
-                url = $"{baseUrl}/all?id={ApartmentId}";
-            }
-            else
-            {
-                url = $"{baseUrl}?id={ApartmentId}&page={page}&recordsnumber={currentRecordsNumber}";
-                if (!string.IsNullOrWhiteSpace(Filter))
-                {
-                    url += $"&filter={Filter}";
-                }
 
-            }
-            var responseHttp = await Repository.GetAsync<List<Vehicle>>(url);
-            if (responseHttp.Error)
+            url = $"{baseUrl}/recordsnumber?id={ApartmentId}&page=1&recordsnumber={int.MaxValue}";
+            if (!string.IsNullOrWhiteSpace(Filter))
             {
-                var message = await responseHttp.GetErrorMessageAsync();
-                await SweetAlertService.FireAsync(new SweetAlertOptions
-                {
-                    Title = "Error",
-                    Text = message,
-                    Icon = SweetAlertIcon.Error
-                });
+                url += $"&filter={Filter}";
             }
-            vehicle = responseHttp.Response;
-            return true;
-        }
-
-        private async Task LoadPagesAsync()
-        {
-            string baseUrl = $"api/vehicles";
-            string url;
-            if (currentRecordsNumber == "todos")
-            {
-                return;
-            }
-            else
-            {
-                url = $"{baseUrl}/totalpages?id={ApartmentId}&recordsnumber={currentRecordsNumber}";
-                if (!string.IsNullOrWhiteSpace(Filter))
-                {
-                    url += $"&filter={Filter}";
-                }
-            }
-
             var responseHttp = await Repository.GetAsync<int>(url);
             if (responseHttp.Error)
             {
@@ -135,29 +86,75 @@ namespace CommUnity.FrontEnd.Pages.Vehicles
                     Text = message,
                     Icon = SweetAlertIcon.Error
                 });
+                return false;
             }
-            totalPages = responseHttp.Response;
+            totalRecords = responseHttp.Response;
+            loading = false;
+            return true;
         }
 
-        private async Task ApplyFilterAsync()
+        private async Task<TableData<Vehicle>> LoadListAsync(TableState state)
         {
-            int page = 1;
-            await LoadAsync(page);
-            await SelectedPageAsync(page);
+            int page = state.Page + 1;
+            int pageSize = state.PageSize;
+
+            string baseUrl = $"api/vehicles";
+            string url;
+
+            url = $"{baseUrl}?id={ApartmentId}&page={page}&recordsnumber={pageSize}";
+            if (!string.IsNullOrWhiteSpace(Filter))
+            {
+                url += $"&filter={Filter}";
+            }
+            
+            var responseHttp = await Repository.GetAsync<List<Vehicle>>(url);
+            if (responseHttp.Error)
+            {
+                var message = await responseHttp.GetErrorMessageAsync();
+                await SweetAlertService.FireAsync(new SweetAlertOptions
+                {
+                    Title = "Error",
+                    Text = message,
+                    Icon = SweetAlertIcon.Error
+                });
+                return new TableData<Vehicle> { Items = new List<Vehicle>(), TotalItems = 0 };
+            }
+            if (responseHttp.Response == null)
+            {
+                return new TableData<Vehicle> { Items = new List<Vehicle>(), TotalItems = 0 };
+            }
+            return new TableData<Vehicle>
+            {
+                Items = responseHttp.Response,
+                TotalItems = totalRecords
+            };
         }
 
         private async Task SetFilterValue(string value)
         {
             Filter = value;
-            await ApplyFilterAsync();
+            await LoadAsync();
+            await table.ReloadServerData();
         }
 
-        private async Task SetRecordsNumber(string value)
+        private void ReturnAction()
         {
-            int page = 1;
-            RecordsNumber = value;
-            currentRecordsNumber = value;
-            await LoadAsync(page);
+            NavigationManager.NavigateTo($"/apartments/{apartment?.ResidentialUnitId}");
+        }
+
+        private void CreateAction()
+        {
+            NavigationManager.NavigateTo($"/vehicles/create/{ApartmentId}");
+        }
+
+        private void EditAction(Vehicle vehicle)
+        {
+            NavigationManager.NavigateTo($"/vehicles/edit/{vehicle.Id}");
+        }
+
+        private void NoApartment()
+        {
+            NavigationManager.NavigateTo("/residentialunits");
         }
 
         private async Task DeleteAsync(Vehicle  vehicle)
@@ -175,7 +172,7 @@ namespace CommUnity.FrontEnd.Pages.Vehicles
                 return;
             }
 
-            var responseHttp = await Repository.DeleteAsync<Vehicle>($"api/vehicles/{vehicle.Plate}");
+            var responseHttp = await Repository.DeleteAsync<Vehicle>($"api/vehicles/{vehicle.Id}");
             if (responseHttp.Error)
             {
                 if (responseHttp.HttpResponseMessage.StatusCode == HttpStatusCode.NotFound)
@@ -197,6 +194,7 @@ namespace CommUnity.FrontEnd.Pages.Vehicles
                 return;
             }
             await LoadAsync();
+            await table.ReloadServerData();
             var toast = SweetAlertService.Mixin(new SweetAlertOptions
             {
                 Toast = true,

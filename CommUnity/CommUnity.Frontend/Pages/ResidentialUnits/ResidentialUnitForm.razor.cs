@@ -5,6 +5,7 @@ using CurrieTechnologies.Razor.SweetAlert2;
 using Microsoft.AspNetCore.Components;
 using Microsoft.AspNetCore.Components.Forms;
 using Microsoft.AspNetCore.Components.Routing;
+using System.Net;
 using static MudBlazor.Colors;
 
 namespace CommUnity.FrontEnd.Pages.ResidentialUnits
@@ -23,11 +24,16 @@ namespace CommUnity.FrontEnd.Pages.ResidentialUnits
         private City selectedCity = new City();
 
         [Parameter] public bool IsEdit { get; set; } = false;
+        [Parameter, SupplyParameterFromQuery] public string CityId { get; set; } = string.Empty;
+
         [EditorRequired, Parameter] public ResidentialUnit ResidentialUnit { get; set; } = null!;
         [EditorRequired, Parameter] public EventCallback OnValidSubmit { get; set; }
         [EditorRequired, Parameter] public EventCallback ReturnAction { get; set; }
+
         [Inject] public SweetAlertService SweetAlertService { get; set; } = null!;
         [Inject] private IRepository Repository { get; set; } = null!;
+        [Inject] private NavigationManager NavigationManager { get; set; } = null!;
+
         public bool FormPostedSuccessfully { get; set; }
 
         protected override async Task OnInitializedAsync()
@@ -46,8 +52,8 @@ namespace CommUnity.FrontEnd.Pages.ResidentialUnits
                     selectedCity = ResidentialUnit.City!;
                 }
                 await LoadCountriesAsync();
-                await LoadStatesAsyn(ResidentialUnit!.City!.State!.Country!.Id);
-                await LoadCitiesAsyn(ResidentialUnit!.City!.State!.Id);
+                await LoadStatesAsync(ResidentialUnit!.City!.State!.Country!.Id);
+                await LoadCitiesAsync(ResidentialUnit!.City!.State!.Id);
             }
         }
 
@@ -105,7 +111,7 @@ namespace CommUnity.FrontEnd.Pages.ResidentialUnits
             loading = false;
         }
 
-        private async Task LoadStatesAsyn(int countryId)
+        private async Task LoadStatesAsync(int countryId)
         {
             var responseHttp = await Repository.GetAsync<List<State>>($"/api/states/combo/{countryId}");
             if (responseHttp.Error)
@@ -118,7 +124,7 @@ namespace CommUnity.FrontEnd.Pages.ResidentialUnits
             states = responseHttp.Response;
         }
 
-        private async Task LoadCitiesAsyn(int stateId)
+        private async Task LoadCitiesAsync(int stateId)
         {
             var responseHttp = await Repository.GetAsync<List<City>>($"/api/cities/combo/{stateId}");
             if (responseHttp.Error)
@@ -134,17 +140,20 @@ namespace CommUnity.FrontEnd.Pages.ResidentialUnits
         private async Task CountryChangedAsync(Country country)
         {
             selectedCountry = country;
+            selectedState = new State();
+            selectedCity = new City();
             states = null;
             cities = null;
-            await LoadStatesAsyn(country.Id);
+            await LoadStatesAsync(country.Id);
         }
 
         private async Task StateChangedAsync(State state)
         {
             selectedState = state;
+            selectedCity = new City();
             cities = null;
             ResidentialUnit.CityId = 0;
-            await LoadCitiesAsyn(state.Id);
+            await LoadCitiesAsync(state.Id);
         }
 
         private void CityChangedAsync(City city)
